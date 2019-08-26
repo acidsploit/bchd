@@ -20,6 +20,7 @@ import (
 	"github.com/gcash/bchd/mempool"
 	"github.com/gcash/bchd/mining"
 	"github.com/gcash/bchd/txscript"
+	"github.com/gcash/bchd/version"
 	"github.com/gcash/bchd/wire"
 	"github.com/gcash/bchutil"
 	"github.com/gcash/bchutil/merkleblock"
@@ -74,6 +75,9 @@ type NetManager interface {
 	// transactions.  This function should be called whenever new transactions
 	// are added to the mempool.
 	AnnounceNewTransactions(txns []*mempool.TxDesc)
+
+	// ConnectedCount ...
+	ConnectedCount() int32
 }
 
 // GrpcServerConfig hols the various objects needed by the GrpcServer to
@@ -323,7 +327,7 @@ func (s *GrpcServer) GetMempoolInfo(ctx context.Context, req *pb.GetMempoolInfoR
 	return resp, nil
 }
 
-// Returns information about all of the transactions currently in the memory pool.
+// GetMempool returns information about all of the transactions currently in the memory pool.
 // Offers an option to return full transactions or just transactions hashes.
 func (s *GrpcServer) GetMempool(ctx context.Context, req *pb.GetMempoolRequest) (*pb.GetMempoolResponse, error) {
 	rawMempool := s.txMemPool.MiningDescs()
@@ -392,6 +396,19 @@ func (s *GrpcServer) GetBlockchainInfo(ctx context.Context, req *pb.GetBlockchai
 		Difficulty:    getDifficultyRatio(bestSnapShot.Bits, s.chainParams),
 		MedianTime:    bestSnapShot.MedianTime.Unix(),
 	}
+	return resp, nil
+}
+
+// GetNodeInfo returs bchd node info.
+func (s *GrpcServer) GetNodeInfo(ctx context.Context, req *pb.GetNodeInfoRequest) (*pb.GetNodeInfoResponse, error) {
+	nodeVersion := int32(1000000*version.AppMajor + 10000*version.AppMinor + 100*version.AppPatch)
+
+	resp := &pb.GetNodeInfoResponse{
+		Version:         nodeVersion,
+		VersionString:   "BCHD " + version.String(),
+		ConnectionCount: s.netMgr.ConnectedCount(),
+	}
+
 	return resp, nil
 }
 

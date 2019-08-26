@@ -100,10 +100,20 @@ service bchrpc {
     // Subscribe to notifications of new blocks being connected to the blockchain
     // or blocks being disconnected.
     rpc SubscribeBlocks(SubscribeBlocksRequest) returns (stream BlockNotification) {}
+
+    // Get bchd node info from gRPC node you are connecting to
+    rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse) {}
 }
 
 
 // RPC MESSAGES
+
+message GetNodeInfoRequest {}
+message GetNodeInfoResponse {
+    int32 version = 1;
+    string version_string = 2;
+    int32 connection_count = 3;
+}
 
 message GetMempoolInfoRequest {}
 message GetMempoolInfoResponse {

@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/gcash/bchd/bchrpc"
 	"math"
 	"net"
 	"runtime"
@@ -22,6 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gcash/bchd/bchrpc"
 
 	"github.com/gcash/bchutil/gcs/builder"
 
