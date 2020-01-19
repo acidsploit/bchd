@@ -103,6 +103,11 @@ const (
 	// from the rule in order to allow users who accidentally sent funds to
 	// segwit addresses to recover them.
 	ScriptVerifyAllowSegwitRecovery
+
+	// ScriptVerifySchnorrMultisig enables the use of schnorr signatures
+	// with OP_CHECKMULTISIG. When active the dummy element signals the
+	// use of schnorr or ECDSA.
+	ScriptVerifySchnorrMultisig
 )
 
 // HasFlag returns whether the ScriptFlags has the passed flag set.
@@ -285,7 +290,7 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	}
 
 	// If the script is a segwit exemption we exit before checking the cleanstack
-	// rule and before poping the top stack item off the stack and verifying that
+	// rule and before popping the top stack item off the stack and verifying that
 	// it is non-zero. In other words, if this is a p2sh segwit script and the
 	// redeem script hashed to the correct hash in the PKScript then we consider
 	// the script valid. Even if the stop stack item is zero or there is more

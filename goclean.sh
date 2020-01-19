@@ -6,12 +6,12 @@
 # 4. gosimple      (https://github.com/dominikh/go-simple)
 # 5. unconvert     (https://github.com/mdempsky/unconvert)
 #
-# gometalinter.v2 (gopkg.in/alecthomas/gometalinter.v2) is used to run each static
+# golangci-lint (https://github.com/golangci/golangci-lint) is used to run each static
 # checker.
 
 set -ex
 
-# Make sure gometalinter is installed and $GOPATH/bin is in your path.
+# Make sure golangci-lint is installed and $GOPATH/bin is in your path.
 if [ ! -x "$(type -p golangci-lint)" ]; then
   exit 1
 fi

@@ -323,7 +323,7 @@ func (s *GrpcServer) GetMempoolInfo(ctx context.Context, req *pb.GetMempoolInfoR
 	return resp, nil
 }
 
-// Returns information about all of the transactions currently in the memory pool.
+// GetMempool returns information about all of the transactions currently in the memory pool.
 // Offers an option to return full transactions or just transactions hashes.
 func (s *GrpcServer) GetMempool(ctx context.Context, req *pb.GetMempoolRequest) (*pb.GetMempoolResponse, error) {
 	rawMempool := s.txMemPool.MiningDescs()
@@ -886,8 +886,8 @@ func (s *GrpcServer) GetAddressUnspentOutputs(ctx context.Context, req *pb.GetAd
 		if err != nil || len(confirmedTxs) == 0 {
 			break
 		}
-		for _, cTx := range confirmedTxs {
-			txs = append(txs, &cTx.tx)
+		for i := range confirmedTxs {
+			txs = append(txs, &confirmedTxs[i].tx)
 		}
 		skip += len(confirmedTxs)
 	}
@@ -946,48 +946,55 @@ func (s *GrpcServer) GetAddressUnspentOutputs(ctx context.Context, req *pb.GetAd
 	return resp, nil
 }
 
-// Looks up the unspent output in the utxo set and returns the utxo metadata or not found.
+// GetUnspentOutput looks up the unspent output in the utxo set and returns the utxo metadata or not found.
 func (s *GrpcServer) GetUnspentOutput(ctx context.Context, req *pb.GetUnspentOutputRequest) (*pb.GetUnspentOutputResponse, error) {
 	txnHash, err := chainhash.NewHash(req.Hash)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid transaction hash")
 	}
-	op := wire.NewOutPoint(txnHash, req.Index)
-	entry, err := s.chain.FetchUtxoEntry(*op)
-	if err != nil {
-		return nil, err
-	}
+
 	var (
+		op           = wire.NewOutPoint(txnHash, req.Index)
 		value        int64
 		blockHeight  int32
 		scriptPubkey []byte
 		coinbase     bool
 	)
-	if entry == nil && req.IncludeMempool { // Nil means not found in utxo set. Check mempool.
-		desc, err := s.txMemPool.FetchTxDesc(txnHash)
+	if req.IncludeMempool && s.txMemPool.HaveTransaction(txnHash) {
+		tx, err := s.txMemPool.FetchTransaction(txnHash)
 		if err != nil {
 			return nil, status.Error(codes.NotFound, "utxo not found")
 		}
-		if req.Index > uint32(len(desc.Tx.MsgTx().TxOut)) {
+		if req.Index > uint32(len(tx.MsgTx().TxOut)) {
 			return nil, status.Error(codes.InvalidArgument, "prev index greater than len outputs")
 		}
-		value = desc.Tx.MsgTx().TxOut[req.Index].Value
-		blockHeight = mining.UnminedHeight
-		scriptPubkey = desc.Tx.MsgTx().TxOut[req.Index].PkScript
-		coinbase = false
-	} else if entry == nil && !req.IncludeMempool {
-		return nil, status.Error(codes.NotFound, "utxo not found")
-	} else {
-		value = entry.Amount()
-		blockHeight = entry.BlockHeight()
-		scriptPubkey = entry.PkScript()
-		coinbase = entry.IsCoinBase()
-	}
-	if req.IncludeMempool {
 		spendingTx := s.txMemPool.CheckSpend(*op)
 		if spendingTx != nil {
 			return nil, status.Error(codes.NotFound, "utxo spent in mempool")
 		}
+		value = tx.MsgTx().TxOut[req.Index].Value
+		blockHeight = mining.UnminedHeight
+		scriptPubkey = tx.MsgTx().TxOut[req.Index].PkScript
+		coinbase = blockchain.IsCoinBase(tx)
+	} else {
+		if req.IncludeMempool {
+			spendingTx := s.txMemPool.CheckSpend(*op)
+			if spendingTx != nil {
+				return nil, status.Error(codes.NotFound, "utxo spent in mempool")
+			}
+		}
+		entry, err := s.chain.FetchUtxoEntry(*op)
+		if err != nil {
+			return nil, err
+		}
+		if entry == nil || entry.IsSpent() {
+			return nil, status.Error(codes.NotFound, "utxo not found")
+		}
+
+		value = entry.Amount()
+		blockHeight = entry.BlockHeight()
+		scriptPubkey = entry.PkScript()
+		coinbase = entry.IsCoinBase()
 	}
 
 	ret := &pb.GetUnspentOutputResponse{
@@ -1144,13 +1151,13 @@ func (s *GrpcServer) SubscribeTransactions(req *pb.SubscribeTransactionsRequest,
 		select {
 		case event := <-subscription.Events():
 
-			switch event.(type) {
+			switch event := event.(type) {
 			case *rpcEventTxAccepted:
 				if !includeMempool {
 					continue
 				}
 
-				txDesc := event.(*rpcEventTxAccepted)
+				txDesc := event
 
 				if !filter.MatchAndUpdate(txDesc.Tx, s.chainParams) {
 					continue
@@ -1197,7 +1204,7 @@ func (s *GrpcServer) SubscribeTransactions(req *pb.SubscribeTransactionsRequest,
 					continue
 				}
 				// Search for all transactions.
-				block := event.(*rpcEventBlockConnected)
+				block := event
 
 				for _, tx := range block.Transactions() {
 					if !filter.MatchAndUpdate(tx, s.chainParams) {
@@ -1246,7 +1253,7 @@ func (s *GrpcServer) SubscribeTransactions(req *pb.SubscribeTransactionsRequest,
 // the subscription requests. The parameters to filter transactions on can
 // be updated by sending new SubscribeTransactionsRequest objects on the stream.
 //
-// Because this RPC using bi-directional streaming it cannot be used with
+// Because this RPC is using bi-directional streaming it cannot be used with
 // grpc-web.
 //
 // **Requires TxIndex to receive input metadata**
@@ -1275,6 +1282,9 @@ func (s *GrpcServer) SubscribeTransactionStream(stream pb.Bchrpc_SubscribeTransa
 	for {
 		select {
 		case req := <-requests:
+			if req == nil {
+				return nil
+			}
 			includeMempool = req.IncludeMempool
 			includeBlocks = req.IncludeInBlock
 			serializeTx = req.SerializeTx
@@ -1289,13 +1299,13 @@ func (s *GrpcServer) SubscribeTransactionStream(stream pb.Bchrpc_SubscribeTransa
 
 		case event := <-subscription.Events():
 
-			switch event.(type) {
+			switch event := event.(type) {
 			case *rpcEventTxAccepted:
 				if !includeMempool {
 					continue
 				}
 
-				txDesc := event.(*rpcEventTxAccepted)
+				txDesc := event
 
 				if !filter.MatchAndUpdate(txDesc.Tx, s.chainParams) {
 					continue
@@ -1342,7 +1352,7 @@ func (s *GrpcServer) SubscribeTransactionStream(stream pb.Bchrpc_SubscribeTransa
 					continue
 				}
 				// Search for all transactions.
-				block := event.(*rpcEventBlockConnected)
+				block := event
 
 				for _, tx := range block.Transactions() {
 					if !filter.MatchAndUpdate(tx, s.chainParams) {
@@ -1397,10 +1407,10 @@ func (s *GrpcServer) SubscribeBlocks(req *pb.SubscribeBlocksRequest, stream pb.B
 		select {
 		case event := <-subscription.Events():
 
-			switch event.(type) {
+			switch event := event.(type) {
 			case *rpcEventBlockConnected:
 				// Search for all transactions.
-				block := event.(*rpcEventBlockConnected).Block
+				block := event.Block
 				toSend := &pb.BlockNotification{}
 				toSend.Type = pb.BlockNotification_CONNECTED
 
@@ -1486,7 +1496,7 @@ func (s *GrpcServer) SubscribeBlocks(req *pb.SubscribeBlocksRequest, stream pb.B
 
 			case *rpcEventBlockDisconnected:
 				// Search for all transactions.
-				block := event.(*rpcEventBlockDisconnected).Block
+				block := event.Block
 				toSend := &pb.BlockNotification{}
 				toSend.Type = pb.BlockNotification_DISCONNECTED
 

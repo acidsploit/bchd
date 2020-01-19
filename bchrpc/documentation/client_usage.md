@@ -18,8 +18,7 @@ that case, the first step may be omitted by importing the bindings from
 bchd itself.
 
 The rest of this document provides short examples of how to quickly get started
-by implementing a basic client that fetches the balance of the default account
-(account 0) from a testnet3 server listening on `localhost:18335` in several
+by implementing a basic client from a testnet3 server listening on `localhost:18335` in several
 different languages:
 
 - [Go](#go)
@@ -37,7 +36,7 @@ support for the proto3 language version), which contains the protoc
 tool and language plugins used to compile this project's `.proto`
 files to language-specific bindings.
 
-##TLS
+## TLS
 By default bchd uses a self signed certificate to encrypt and authenticate the
 connection. To authenticate against the server the client will need access to the
 certificate. For example, in Go:
@@ -66,6 +65,20 @@ ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 // Make the RPC
 response, err := client.SomeRPC(ctx, someRequest)
+```
+
+## Why Are Transaction IDs Backwards?
+Bitcoin was originally coded by Satoshi in a somewhat quirky way. When a transaction ID is in byte format in memory it is
+stored in little endian format (the bytes are in reverse order). When the ID is converted into a hex string the ID is reversed into
+big endian format (the format you're used to seeing on block explorers). The bchd codebase continues this behavior. Byte arrays = little 
+endian, hex strings = big endian. Because we send transaction IDs as byte arrays in gRPC, they are in little endian format. To get to
+the familiar format you're used to simply reverse them.
+
+The bchd library offers a `chainhash` function which can do this for you if you're using Go:
+```go
+hash, _ := chainhash.NewHash(txBytes) // Expects the bytes to be in little endian format.
+
+fmt.Println(hash.String()) // Prints a hex string in big endian format.
 ```
 
 ## Go
@@ -208,5 +221,7 @@ def run():
 if __name__ == '__main__':
     run()
 ```
+With Python is may be difficult to setup gRPC with self-signed certs.
+We highly recommend getting a certificate from Let's Encrypt.
 
 TODO: Add examples in other languages
