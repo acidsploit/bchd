@@ -4,11 +4,8 @@ import grpc
 import bchrpc_pb2 as pb
 import bchrpc_pb2_grpc as bchrpc
 
-# options = (('http_proxy', "http://127.0.0.1:9050",),)
-
 def run():
-    # with grpc.secure_channel('bchd.greyh.at:8335', grpc.ssl_channel_credentials()) as channel:
-    with grpc.secure_channel('bchd.sploit.cash', grpc.ssl_channel_credentials()) as channel:
+    with grpc.secure_channel('bchd.greyh.at:8335', grpc.ssl_channel_credentials()) as channel:
         stub = bchrpc.bchrpcStub(channel)
 
         ## Fetch tx history for bch address

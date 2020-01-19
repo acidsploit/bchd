@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gcash/bchd/addrmgr"
 	"io"
 	"io/ioutil"
 	"math"
@@ -28,6 +27,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gcash/bchd/addrmgr"
 
 	"github.com/btcsuite/websocket"
 	"github.com/gcash/bchd/bchec"
@@ -2309,7 +2310,8 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	ret := &btcjson.InfoChainResult{
-		Version:         int32(1000000*version.AppMajor + 10000*version.AppMinor + 100*version.AppPatch),
+		// Version:         int32(1000000*version.AppMajor + 10000*version.AppMinor + 100*version.AppPatch),
+		Version:         version.Numeric(),
 		ProtocolVersion: int32(maxProtocolVersion),
 		Blocks:          best.Height,
 		TimeOffset:      int64(s.cfg.TimeSource.Offset().Seconds()),

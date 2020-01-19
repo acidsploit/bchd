@@ -401,7 +401,7 @@ func (s *GrpcServer) GetBlockchainInfo(ctx context.Context, req *pb.GetBlockchai
 
 // GetNodeInfo returs bchd node info.
 func (s *GrpcServer) GetNodeInfo(ctx context.Context, req *pb.GetNodeInfoRequest) (*pb.GetNodeInfoResponse, error) {
-	nodeVersion := int32(1000000*version.AppMajor + 10000*version.AppMinor + 100*version.AppPatch)
+	nodeVersion := version.Numeric()
 
 	resp := &pb.GetNodeInfoResponse{
 		Version:         nodeVersion,

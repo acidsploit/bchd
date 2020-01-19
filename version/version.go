@@ -63,7 +63,7 @@ func String() string {
 
 // Numeric returns the application version as an integer.
 func Numeric() int32 {
-	return int32(2 ^ AppMajor*3 ^ AppMinor*5 ^ AppPatch)
+	return int32(1000000*AppMajor + 10000*AppMinor + 100*AppPatch)
 }
 
 // normalizeVerString returns the passed string stripped of all characters which
